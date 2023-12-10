@@ -26,10 +26,10 @@ class BertOne(TrainableModule):
     def forward(self, **kwards):
         _, output_1 = self.l1(**kwards, return_dict=False)
         output_2 = self.l2(output_1)
-        output_clf_opc = sigmoid(self.clf_opc(output_2))
-        output_clf_se = sigmoid(self.clf_se(output_2))
-        output_clf_c = sigmoid(self.clf_c(output_2))
-        output_clf_st = sigmoid(self.clf_st(output_2))
+        output_clf_opc = self.clf_opc(output_2)
+        output_clf_se = self.clf_se(output_2)
+        output_clf_c = self.clf_c(output_2)
+        output_clf_st = self.clf_st(output_2)
 
         output = torch.stack(tensors=(output_clf_opc, output_clf_se, output_clf_c, output_clf_st), dim=1)
 
