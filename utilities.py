@@ -145,24 +145,22 @@ def calculate_max_length(df, columns, tokenizer):
     return max_token_count
 
 
-def avg_f1_score(real_y, pred_y, num_classes=4, mode='macro'):
+def f1_labels_score(real_y, pred_y, n_labels):
     """
     Uses the F1 score (drTorch version) to compute the f1 on the single columns of a dataframe separately
 
     :param real_y: the real labels
     :param pred_y: the predicted labels
-    :param num_classes: the number of classes (number of columns of the real_y dataframe)
-    :param mode: f1 policy: "none", "micro", "macro", "weighted"
+    :param n_labels: the number of classes (number of columns of the real_y dataframe)
 
-    :return: the average f1 of the different columns
+    :return: the f1 scores for each label
     """
     scores = []
 
-    for i in range(num_classes):
+    for i in range(n_labels):
         test_labels_flat = torch.tensor(real_y.iloc[:, i].to_list())
         y_pred_flat = torch.tensor(pred_y[:, i])
-        f1_metric = F1_Score(name="F1_Score", num_classes=2, mode=mode, classes_to_exclude=None)
+        f1_metric = F1_Score(name="F1_Score", num_classes=2, mode="macro", classes_to_exclude=None)
         scores.append(f1_metric(y_pred_flat, test_labels_flat))
-        print(f"f1 on column {i}: ", f1_metric(y_pred_flat, test_labels_flat))
 
-    return sum(scores) / len(scores)
+    return scores

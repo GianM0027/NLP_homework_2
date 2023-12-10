@@ -221,3 +221,32 @@ class F1_Score(Metric):
             raise ValueError("Undefined mode specified, available modes are 'none','macro' and 'micro'")
 
         return result
+
+
+class F1_Score_Multi_Labels(F1_Score):
+    def __init__(self,
+                 name: str,
+                 num_classes: int,
+                 num_labels: int,
+                 classes_to_exclude: Optional[list[int] | np.ndarray[int]] = None):
+
+        super().__init__(name=name, num_classes=num_classes, mode='macro', classes_to_exclude=classes_to_exclude)
+        self.num_labels = num_labels
+
+    def __call__(self,
+                 predicted_classes: torch.Tensor,  # torch tensor 1-d
+                 target_classes: torch.Tensor,     # torch tensor 1-d
+                 accumulate_statistic: bool = False):
+
+        predicted_classes = predicted_classes.reshape(-1, self.num_labels)
+        target_classes = target_classes.reshape(-1, self.num_labels)
+
+        scores = []
+
+        for i in range(self.num_labels):
+            test_labels_flat = target_classes[:, i]
+            y_pred_flat = predicted_classes[:, i]
+
+            scores.append(super().__call__(y_pred_flat, test_labels_flat))
+
+        return sum(scores) / len(scores)
