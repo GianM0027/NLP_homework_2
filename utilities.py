@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import torch
 import transformers
-import tqdm
 
 from drTorch.metrics import F1_Score
 

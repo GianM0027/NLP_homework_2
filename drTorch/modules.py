@@ -153,6 +153,7 @@ class TrainableModule(torch.nn.Module):
                 inputs = {key: value.to(next(self.parameters()).device) if torch.is_tensor(value) else value for key, value in inputs.items()}
                 labels = labels.to(next(self.parameters()).device)
                 optimizer.zero_grad()
+                print(inputs)
 
                 outputs = self(**inputs)
                 loss = criterion(outputs, labels)
