@@ -1,11 +1,107 @@
 import os
 
-import numpy as np
-import pandas as pd
 import torch
 import transformers
 
-from drTorch.metrics import F1_Score
+import pandas as pd
+
+
+class CustomDataset(torch.utils.data.Dataset):
+    def __init__(self, data_dict, labels):
+        self.data_dict = data_dict
+        self.labels = labels
+
+    def __len__(self):
+        return self.labels.shape[0]
+
+    def __getitem__(self, index):
+        pass
+
+
+class CustomDataset_C(CustomDataset):
+    def __init__(self, data_dict, labels):
+        super().__init__(data_dict, labels)
+
+    def __getitem__(self, index):
+        sample = {
+            'Conclusion': {
+                'input_ids': self.data_dict['Conclusion']['input_ids'][index],
+                'token_type_ids': self.data_dict['Conclusion']['token_type_ids'][index],
+                'attention_mask': self.data_dict['Conclusion']['attention_mask'][index]
+            }
+        }
+        label = self.labels[index]
+        return sample, label
+
+
+class CustomDataset_CP(CustomDataset):
+    def __init__(self, data_dict, labels):
+        super().__init__(data_dict, labels)
+
+    def __getitem__(self, index):
+        sample = {
+            'Conclusion': {
+                'input_ids': self.data_dict['Conclusion']['input_ids'][index],
+                'token_type_ids': self.data_dict['Conclusion']['token_type_ids'][index],
+                'attention_mask': self.data_dict['Conclusion']['attention_mask'][index]
+            },
+            'Premise': {
+                'input_ids': self.data_dict['Premise']['input_ids'][index],
+                'token_type_ids': self.data_dict['Premise']['token_type_ids'][index],
+                'attention_mask': self.data_dict['Premise']['attention_mask'][index]
+            }
+        }
+        label = self.labels[index]
+        return sample, label
+
+
+class CustomDataset_CPS(CustomDataset):
+    def __init__(self, data_dict, labels):
+        super().__init__(data_dict, labels)  # Modifica questa linea
+
+    def __getitem__(self, index):
+        sample = {
+            'Conclusion': {
+                'input_ids': self.data_dict['Conclusion']['input_ids'][index],
+                'token_type_ids': self.data_dict['Conclusion']['token_type_ids'][index],
+                'attention_mask': self.data_dict['Conclusion']['attention_mask'][index]
+            },
+            'Premise': {
+                'input_ids': self.data_dict['Premise']['input_ids'][index],
+                'token_type_ids': self.data_dict['Premise']['token_type_ids'][index],
+                'attention_mask': self.data_dict['Premise']['attention_mask'][index]
+            },
+            'Stance': self.data_dict['Stance'][index]
+        }
+        label = self.labels[index]
+        return sample, label
+
+
+def download_bert_models(directory: str, versions: list[str]) -> list[str]:
+    # todo documente
+    """
+
+    Args:
+        directory:
+        versions:
+
+    Returns:
+
+    """
+    versions_paths = []
+
+    for bert_v in versions:
+        version_directory = os.path.join(directory, bert_v)
+
+        current_bert = transformers.BertModel.from_pretrained(bert_v)
+        current_tokenizers = transformers.BertTokenizer.from_pretrained(bert_v)
+
+        current_bert.save_pretrained(version_directory)
+        current_tokenizers.save_pretrained(version_directory)
+
+        versions_paths.append(version_directory)
+
+    return versions_paths
 
 
 def create_dfs(directory):
@@ -84,82 +180,85 @@ def map_to_level_3(mapping, *label_sets):
     return tuple(dfs)
 
 
-def encode(df: pd.DataFrame,
-           tokenizer: transformers.models.bert.tokenization_bert.BertTokenizer,
-           max_length: int,
-           columns: list[str],
-           add_special_tokens: bool = True,
-           return_token_type_ids: bool = False,
-           return_attention_mask: bool = True):
-    """
-    Tokenizes the columns of a dataframe df specified in the parameter column. The dataframe must contain the columns
-    [Conclusion, Stance, Premise]. It encodes the Conclusion and Premise column according to the tokenizer policy. While the
-    Stance is encoded in a numerical format (either 0 or 1).
-
-    :param df: dataframe to tokenize
-    :param tokenizer: tokenizer object
-    :param max_length: length (in words) of the longest sentence in the columns to tokenize (used to determine the padding)
-    :param columns: columns to take into account for the tokenization
-    :param add_special_tokens: parameter for the tokenizer, decides whether to add or not special tokens like <star_of_-sentence> or <end_of_-sentence>
-
-    :return: the dataframe tokenized
+def build_dataloaders(train_df: pd.DataFrame,
+                      val_df: pd.DataFrame,
+                      test_df: pd.DataFrame,
+                      train_labels_df: pd.DataFrame,
+                      val_labels_df: pd.DataFrame,
+                      test_labels_df: pd.DataFrame,
+                      one_hot_mapping: dict[str, int],
+                      bert_version: os.path,
+                      model_input: list[str],
+                      custom_dataset_builder: callable,
+                      batch_size: int,
+                      shuffle: bool):
     """
 
-    for column in columns:
-        for index, row in df.iterrows():
-            input = tokenizer.encode_plus(row[column],
-                                          add_special_tokens=add_special_tokens,
-                                          max_length=max_length,
-                                          return_token_type_ids=return_token_type_ids,
-                                          padding="max_length",
-                                          return_attention_mask=return_attention_mask,
-                                          return_tensors='pt')
-
-            df.at[index, column] = {key: input[key][0] for key in input.keys()}
-
-    df["Stance"] = np.where(df["Stance"] == "against", 0, 1)
-
-    return df
+    Build DataLoader instances for training, validation, and testing datasets.
 
 
-def calculate_max_length(df, columns, tokenizer):
-    """
-    Calculates maximum length of tokens in a dataframes of non-tokenized sentences, in the columns specified by the parameter "columns".
-    This function is used to have a parameter which helps to set a padding during the actual tokenization.
+    Build DataLoader instances for training, validation, and testing datasets.
 
-    :param df: the dataframes of sentences
-    :param columns: the columns to take into account
-    :param tokenizer: the tokenizer that will be used for the following tokenization
 
-    :return: the number of tokens in the longest sentence of the dataframe
+    :params train_df: DataFrame containing training data.
+    :params val_df: DataFrame containing validation data.
+    :params test_df: DataFrame containing testing data.
+    :params train_labels_df: DataFrame containing labels for training data.
+    :params val_labels_df: DataFrame containing labels for validation data.
+    :params test_labels_df: DataFrame containing labels for testing data.
+    :params one_hot_mapping: Mapping dictionary for one-hot encoding.
+    :params bert_version: BERT model version for tokenization.
+    :params model_input: List of model input features.
+    :params batch_size: Batch size for DataLoader.
+    :params shuffle: Whether to shuffle the data in DataLoader.
+
+    :returns tuple: DataLoader instances for training, validation, and testing datasets.
+
     """
 
-    max_token_count = 0
-    for column in columns:
-        # Calculate the maximum token count in the specified columns
-        token_count = df[column].apply(lambda x: len(tokenizer.tokenize(x))).max()
-        if token_count > max_token_count:
-            max_token_count = token_count
+    my_tokenizer = transformers.BertTokenizer.from_pretrained(bert_version)
 
-    return max_token_count
+    tmp_train_dict = {}
+    tmp_val_dict = {}
+    tmp_test_dict = {}
 
+    for input in model_input:
+        if input != "Stance":
+            tmp_train_dict[input] = my_tokenizer.batch_encode_plus(train_df[input],
+                                                                   return_tensors="pt",
+                                                                   padding=True)
 
-def f1_labels_score(real_y, pred_y, n_labels):
-    """
-    Uses the F1 score (drTorch version) to compute the f1 on the single columns of a dataframe separately
+            tmp_val_dict[input] = my_tokenizer.batch_encode_plus(val_df[input],
+                                                                 return_tensors="pt",
+                                                                 padding=True)
 
-    :param real_y: the real labels
-    :param pred_y: the predicted labels
-    :param n_labels: the number of classes (number of columns of the real_y dataframe)
+            tmp_test_dict[input] = my_tokenizer.batch_encode_plus(test_df[input],
+                                                                  return_tensors="pt",
+                                                                  padding=True)
+        else:
+            tmp_train_dict[input] = torch.tensor((train_df[input].to_numpy() == 'in favor of').astype(int))
+            tmp_val_dict[input] = torch.tensor((val_df[input].to_numpy() == 'in favor of').astype(int))
+            tmp_test_dict[input] = torch.tensor((test_df[input].to_numpy() == 'in favor of').astype(int))
 
-    :return: the f1 scores for each label
-    """
-    scores = []
+    train_labels_tensor = torch.tensor(
+        [[one_hot_mapping[element] for element in row] for row in train_labels_df.values])
+    val_labels_tensor = torch.tensor([[one_hot_mapping[element] for element in row] for row in val_labels_df.values])
+    test_labels_tensor = torch.tensor([[one_hot_mapping[element] for element in row] for row in test_labels_df.values])
 
-    for i in range(n_labels):
-        test_labels_flat = torch.tensor(real_y.iloc[:, i].to_list())
-        y_pred_flat = torch.tensor(pred_y[:, i])
-        f1_metric = F1_Score(name="F1_Score", num_classes=2, mode="macro", classes_to_exclude=None)
-        scores.append(f1_metric(y_pred_flat, test_labels_flat))
+    custom_train_dataset = custom_dataset_builder(tmp_train_dict, train_labels_tensor)
+    custom_val_dataset = custom_dataset_builder(tmp_val_dict, val_labels_tensor)
+    custom_test_dataset = custom_dataset_builder(tmp_test_dict, test_labels_tensor)
 
-    return scores
+    dataloader_train = torch.utils.data.DataLoader(custom_train_dataset,
+                                                   batch_size=batch_size,
+                                                   shuffle=shuffle)
+
+    dataloader_val = torch.utils.data.DataLoader(custom_val_dataset,
+                                                 batch_size=batch_size,
+                                                 shuffle=False)
+
+    dataloader_test = torch.utils.data.DataLoader(custom_test_dataset,
+                                                  batch_size=batch_size,
+                                                  shuffle=False)
+
+    return dataloader_train, dataloader_val, dataloader_test

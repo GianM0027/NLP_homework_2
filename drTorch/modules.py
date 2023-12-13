@@ -1,20 +1,3 @@
-"""
-
-
-
- /$$$$$$$         /$$$$$$$$                            /$$
-| $$__  $$       |__  $$__/                           | $$
-| $$  \ $$  /$$$$$$ | $$  /$$$$$$   /$$$$$$   /$$$$$$$| $$$$$$$
-| $$  | $$ /$$__  $$| $$ /$$__  $$ /$$__  $$ /$$_____/| $$__  $$
-| $$  | $$| $$  \__/| $$| $$  \ $$| $$  \__/| $$      | $$  \ $$
-| $$  | $$| $$      | $$| $$  | $$| $$      | $$      | $$  | $$
-| $$$$$$$/| $$      | $$|  $$$$$$/| $$      |  $$$$$$$| $$  | $$
-|_______/ |__/      |__/ \______/ |__/       \_______/|__/  |__/
-
-
-
-"""
-
 from typing import Any
 
 from .wrappers import Criterion, OptimizerWrapper
@@ -44,6 +27,16 @@ class TrainableModule(torch.nn.Module):
 
     def __init__(self):
         super(TrainableModule, self).__init__()
+
+    def __to_device(self, data, device):
+        if isinstance(data, torch.Tensor):
+            return data.to(device)
+        elif isinstance(data, dict):
+            return {key: self.__to_device(value, device) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self.__to_device(item, device) for item in data]
+        else:
+            return data
 
     def validate(self,
                  data_loader: torch.utils.data.DataLoader,
@@ -75,17 +68,22 @@ class TrainableModule(torch.nn.Module):
 
         self.eval()
         with torch.no_grad():
-            for iteration, (inputs, labels) in enumerate(data_loader):
-                inputs = {key: value.to(next(self.parameters()).device) if torch.is_tensor(value) else value for key, value in inputs.items()}
-                labels = labels.to(next(self.parameters()).device)
-                outputs = self(**inputs)
+            for batch_idx, (inputs, labels) in enumerate(data_loader):
+                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(next(self.parameters()).device)
+                outputs = self(inputs)
+                print("\noutput", outputs, outputs.shape)
                 outputs_reshaped = torch.reshape(outputs,(np.prod(outputs.shape) // outputs.shape[-1], outputs.shape[-1]))
-                labels_reshaped = torch.reshape(labels, (np.prod(labels.shape) // labels.shape[-1], labels.shape[-1]))
+                print("outputs_reshaped", outputs_reshaped, outputs_reshaped.shape)
+                print("labels", labels, labels.shape)
+                labels_reshaped = torch.reshape(labels,(np.prod(labels.shape) // labels.shape[-1], labels.shape[-1]))
+                print("labels_reshaped", labels_reshaped, labels_reshaped.shape)
                 loss = criterion(outputs_reshaped, labels_reshaped)
-
+                print("loss", loss, loss.shape)
                 predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1].view(-1)
                 labels_id = torch.max(labels, len(labels.shape) - 1)[1].view(-1)
-
+                print(loss.shape)
+                print(labels_reshaped.shape)
+                break
                 if aggregate_loss_on_dataset:
                     aggregated_losses = torch.cat((aggregated_losses, loss.to('cpu')))
                 else:
@@ -150,12 +148,9 @@ class TrainableModule(torch.nn.Module):
             self.train()
 
             for iteration, (inputs, labels) in enumerate(train_loader):
-                inputs = {key: value.to(next(self.parameters()).device) if torch.is_tensor(value) else value for key, value in inputs.items()}
-                labels = labels.to(next(self.parameters()).device)
+                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(next(self.parameters()).device)
                 optimizer.zero_grad()
-                print(inputs)
-
-                outputs = self(**inputs)
+                outputs = self(inputs)
                 loss = criterion(outputs, labels)
                 loss = criterion.reduction_function(loss)
                 loss.backward()

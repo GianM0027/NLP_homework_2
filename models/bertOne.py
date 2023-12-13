@@ -1,3 +1,5 @@
+import os
+
 import torch
 import transformers
 
@@ -7,7 +9,7 @@ from torch.nn.functional import max_pool2d
 
 class BertOne(TrainableModule):
 
-    def __init__(self, dropout_prob: float = 0.3, hidden_size: int = 768, bert_version='bert-base-uncased'):
+    def __init__(self, dropout_prob: float = 0.3, hidden_size: int = 768, bert_version: os.path = './bert_models/bert-base-uncased'):
         """
 
         :param dropout_prob:
@@ -23,17 +25,14 @@ class BertOne(TrainableModule):
         self.clf_c = torch.nn.Linear(hidden_size, 2)
         self.clf_st = torch.nn.Linear(hidden_size, 2)
 
-    def forward(self, **kwards:dict) -> torch.Tensor:
-        output_0, output_1 = self.bert(**kwards, return_dict=False)
+    def forward(self, kwards: dict) -> torch.Tensor:
+        output_loss, output_logits = self.bert(**kwards['Conclusion'], return_dict=False)
+        output = self.drop_out(output_logits)
 
-        #output_2 = max_pool2d(self.l2(output_0), kernel_size=(output_0.shape[1], 1))[:,0,:]
-
-        output_2 = self.drop_out(output_1)
-
-        output_clf_opc = self.clf_opc(output_2)
-        output_clf_se = self.clf_se(output_2)
-        output_clf_c = self.clf_c(output_2)
-        output_clf_st = self.clf_st(output_2)
+        output_clf_opc = self.clf_opc(output)
+        output_clf_se = self.clf_se(output)
+        output_clf_c = self.clf_c(output)
+        output_clf_st = self.clf_st(output)
 
         output = torch.stack(tensors=(output_clf_opc, output_clf_se, output_clf_c, output_clf_st), dim=1)
 

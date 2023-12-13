@@ -19,7 +19,7 @@
 from .wrappers import Criterion, OptimizerWrapper
 from .metrics import Metric
 from .callbacks import EarlyStopper
-from .utilities import get_data_loader
+from .utilities import get_std_data_loader
 
 import torch
 
@@ -268,10 +268,10 @@ def collect_results(train_data: tuple[torch.Tensor, torch.Tensor],
         early_stopper_exist = 'early_stopper' in training_hyperparameters and training_hyperparameters[
             'early_stopper'] is not None
 
-        train_data_loader = get_data_loader(data=train_input, label=train_labels,
-                                            batch_size=training_hyperparameters['batch_size'], shuffle=shuffle)
-        val_data_loader = get_data_loader(data=val_input, label=val_labels,
-                                          batch_size=training_hyperparameters['batch_size'], shuffle=False)
+        train_data_loader = get_std_data_loader(data=train_input, label=train_labels,
+                                                batch_size=training_hyperparameters['batch_size'], shuffle=shuffle)
+        val_data_loader = get_std_data_loader(data=val_input, label=val_labels,
+                                              batch_size=training_hyperparameters['batch_size'], shuffle=False)
 
         new_training_hyperparameters = training_hyperparameters.copy()
         new_training_hyperparameters.pop('batch_size')
