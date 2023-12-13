@@ -29,6 +29,7 @@ class TrainableModule(torch.nn.Module):
         super(TrainableModule, self).__init__()
 
     def __to_device(self, data, device):
+        # todo documentation
         if isinstance(data, torch.Tensor):
             return data.to(device)
         elif isinstance(data, dict):
@@ -64,26 +65,20 @@ class TrainableModule(torch.nn.Module):
         for metric in metrics:
             results[metric.name] = []
 
-        aggregated_losses = torch.tensor((0,), device='cpu')
+        aggregated_losses = torch.tensor([], device='cpu')
 
         self.eval()
         with torch.no_grad():
             for batch_idx, (inputs, labels) in enumerate(data_loader):
-                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(next(self.parameters()).device)
+                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(
+                    next(self.parameters()).device)
                 outputs = self(inputs)
-                print("\noutput", outputs, outputs.shape)
-                outputs_reshaped = torch.reshape(outputs,(np.prod(outputs.shape) // outputs.shape[-1], outputs.shape[-1]))
-                print("outputs_reshaped", outputs_reshaped, outputs_reshaped.shape)
-                print("labels", labels, labels.shape)
-                labels_reshaped = torch.reshape(labels,(np.prod(labels.shape) // labels.shape[-1], labels.shape[-1]))
-                print("labels_reshaped", labels_reshaped, labels_reshaped.shape)
+                outputs_reshaped = torch.reshape(outputs,
+                                                 (np.prod(outputs.shape) // outputs.shape[-1], outputs.shape[-1]))
+                labels_reshaped = torch.reshape(labels, (np.prod(labels.shape) // labels.shape[-1], labels.shape[-1]))
                 loss = criterion(outputs_reshaped, labels_reshaped)
-                print("loss", loss, loss.shape)
                 predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1].view(-1)
                 labels_id = torch.max(labels, len(labels.shape) - 1)[1].view(-1)
-                print(loss.shape)
-                print(labels_reshaped.shape)
-                break
                 if aggregate_loss_on_dataset:
                     aggregated_losses = torch.cat((aggregated_losses, loss.to('cpu')))
                 else:
@@ -148,7 +143,8 @@ class TrainableModule(torch.nn.Module):
             self.train()
 
             for iteration, (inputs, labels) in enumerate(train_loader):
-                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(next(self.parameters()).device)
+                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(
+                    next(self.parameters()).device)
                 optimizer.zero_grad()
                 outputs = self(inputs)
                 loss = criterion(outputs, labels)

@@ -224,18 +224,21 @@ class F1_Score(Metric):
 
 
 class F1_Score_Multi_Labels(F1_Score):
+    # todo documentation
     def __init__(self,
                  name: str,
                  num_classes: int,
                  num_labels: int,
-                 classes_to_exclude: Optional[list[int] | np.ndarray[int]] = None):
+                 classes_to_exclude: Optional[list[int] | np.ndarray[int]] = None,
+                 compute_mean=True):
 
         super().__init__(name=name, num_classes=num_classes, mode='macro', classes_to_exclude=classes_to_exclude)
         self.num_labels = num_labels
+        self.compute_mean = compute_mean
 
     def __call__(self,
                  predicted_classes: torch.Tensor,  # torch tensor 1-d
-                 target_classes: torch.Tensor,     # torch tensor 1-d
+                 target_classes: torch.Tensor,  # torch tensor 1-d
                  accumulate_statistic: bool = False):
 
         predicted_classes = predicted_classes.reshape(-1, self.num_labels)
@@ -249,4 +252,9 @@ class F1_Score_Multi_Labels(F1_Score):
 
             scores.append(super().__call__(y_pred_flat, test_labels_flat))
 
-        return sum(scores) / len(scores)
+        if self.compute_mean:
+            output = sum(scores) / len(scores)
+        else:
+            output = scores
+
+        return output
