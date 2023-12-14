@@ -15,7 +15,6 @@
 
 """
 
-
 from .wrappers import Criterion, OptimizerWrapper
 from .metrics import Metric
 from .callbacks import EarlyStopper
@@ -346,5 +345,3 @@ def collect_results(train_data: tuple[torch.Tensor, torch.Tensor],
     joblib.dump(df, path_to_results)
 
     return df
-
-

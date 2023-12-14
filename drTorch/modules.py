@@ -143,8 +143,7 @@ class TrainableModule(torch.nn.Module):
             self.train()
 
             for iteration, (inputs, labels) in enumerate(train_loader):
-                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(
-                    next(self.parameters()).device)
+                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(next(self.parameters()).device)
                 optimizer.zero_grad()
                 outputs = self(inputs)
                 loss = criterion(outputs, labels)
@@ -165,6 +164,7 @@ class TrainableModule(torch.nn.Module):
                         out_str += f" - {metric.name}: {metrics_value[idx]}"
                     sys.stdout.write(out_str)
                     sys.stdout.flush()
+
 
             train_results = self.validate(train_loader,
                                           criterion,

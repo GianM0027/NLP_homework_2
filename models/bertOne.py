@@ -6,18 +6,20 @@ import transformers
 from drTorch.modules import TrainableModule
 from torch.nn.functional import max_pool2d
 
+bert_model = transformers.BertModel | transformers.RobertaModel
+
 
 class BertOne(TrainableModule):
+    # todo documentation
 
-    def __init__(self, dropout_prob: float = 0.3, hidden_size: int = 768, bert_version: os.path = './bert_models/bert-base-uncased'):
-        """
-
-        :param dropout_prob:
-        :param hidden_size:
-        """
+    def __init__(self,
+                 dropout_prob: float = 0.3,
+                 hidden_size: int = 768,
+                 bert_version: os.path = './bert_models/bert-base-uncased',
+                 bert_constructor: bert_model = transformers.BertModel):
         super(BertOne, self).__init__()
 
-        self.bert = transformers.BertModel.from_pretrained(bert_version)
+        self.bert = bert_constructor.from_pretrained(bert_version)
         self.drop_out = torch.nn.Dropout(dropout_prob)
 
         self.clf_opc = torch.nn.Linear(hidden_size, 2)

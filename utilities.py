@@ -5,6 +5,10 @@ import transformers
 
 import pandas as pd
 
+bert_model = transformers.BertModel | transformers.RobertaModel
+
+bert_tokenizer = transformers.BertTokenizer | transformers.RobertaTokenizer
+
 
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, data_dict, labels):
@@ -77,24 +81,30 @@ class CustomDataset_CPS(CustomDataset):
         return sample, label
 
 
-def download_bert_models(directory: str, versions: list[str]) -> list[str]:
+def download_bert_models(directory: str,
+                         versions: list[str],
+                         bert_constructors: list[bert_model],
+                         bert_tokenizer_constructors: list[bert_tokenizer]) -> list[str]:
     # todo documente
     """
 
     Args:
         directory:
         versions:
+        bert_constructors:
+        bert_tokenizer_constructors:
 
     Returns:
 
     """
     versions_paths = []
 
-    for bert_v in versions:
+    for bert_v, bert_constructor, tokenizer_constructor in zip(versions, bert_constructors,
+                                                               bert_tokenizer_constructors):
         version_directory = os.path.join(directory, bert_v)
 
-        current_bert = transformers.BertModel.from_pretrained(bert_v)
-        current_tokenizers = transformers.BertTokenizer.from_pretrained(bert_v)
+        current_bert = bert_constructor.from_pretrained(bert_v)
+        current_tokenizers = tokenizer_constructor.from_pretrained(bert_v)
 
         current_bert.save_pretrained(version_directory)
         current_tokenizers.save_pretrained(version_directory)
@@ -188,6 +198,7 @@ def build_dataloaders(train_df: pd.DataFrame,
                       test_labels_df: pd.DataFrame,
                       one_hot_mapping: dict[str, int],
                       bert_version: os.path,
+                      tokenizer_constructor: bert_tokenizer,
                       model_input: list[str],
                       custom_dataset_builder: callable,
                       batch_size: int,
@@ -216,7 +227,7 @@ def build_dataloaders(train_df: pd.DataFrame,
 
     """
 
-    my_tokenizer = transformers.BertTokenizer.from_pretrained(bert_version)
+    my_tokenizer = tokenizer_constructor.from_pretrained(bert_version)
 
     tmp_train_dict = {}
     tmp_val_dict = {}
@@ -226,15 +237,18 @@ def build_dataloaders(train_df: pd.DataFrame,
         if input != "Stance":
             tmp_train_dict[input] = my_tokenizer.batch_encode_plus(train_df[input],
                                                                    return_tensors="pt",
-                                                                   padding=True)
+                                                                   padding=True,
+                                                                   return_token_type_ids=True)
 
             tmp_val_dict[input] = my_tokenizer.batch_encode_plus(val_df[input],
                                                                  return_tensors="pt",
-                                                                 padding=True)
+                                                                 padding=True,
+                                                                 return_token_type_ids=True)
 
             tmp_test_dict[input] = my_tokenizer.batch_encode_plus(test_df[input],
                                                                   return_tensors="pt",
-                                                                  padding=True)
+                                                                  padding=True,
+                                                                  return_token_type_ids=True)
         else:
             tmp_train_dict[input] = torch.tensor((train_df[input].to_numpy() == 'in favor of').astype(int))
             tmp_val_dict[input] = torch.tensor((val_df[input].to_numpy() == 'in favor of').astype(int))
