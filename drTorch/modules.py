@@ -73,10 +73,14 @@ class TrainableModule(torch.nn.Module):
                 inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(
                     next(self.parameters()).device)
                 outputs = self(inputs)
+                """
                 outputs_reshaped = torch.reshape(outputs,
                                                  (np.prod(outputs.shape) // outputs.shape[-1], outputs.shape[-1]))
                 labels_reshaped = torch.reshape(labels, (np.prod(labels.shape) // labels.shape[-1], labels.shape[-1]))
                 loss = criterion(outputs_reshaped, labels_reshaped)
+                """
+                loss = criterion(outputs, labels)
+
                 predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1].view(-1)
                 labels_id = torch.max(labels, len(labels.shape) - 1)[1].view(-1)
                 if aggregate_loss_on_dataset:
@@ -143,7 +147,8 @@ class TrainableModule(torch.nn.Module):
             self.train()
 
             for iteration, (inputs, labels) in enumerate(train_loader):
-                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(next(self.parameters()).device)
+                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(
+                    next(self.parameters()).device)
                 optimizer.zero_grad()
                 outputs = self(inputs)
                 loss = criterion(outputs, labels)
@@ -164,7 +169,6 @@ class TrainableModule(torch.nn.Module):
                         out_str += f" - {metric.name}: {metrics_value[idx]}"
                     sys.stdout.write(out_str)
                     sys.stdout.flush()
-
 
             train_results = self.validate(train_loader,
                                           criterion,

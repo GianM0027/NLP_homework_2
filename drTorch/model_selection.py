@@ -37,8 +37,11 @@ FIT_PARAMETER_TYPES = torch.utils.data.DataLoader | torch.utils.data.DataLoader 
                       OptimizerWrapper | int | Optional[EarlyStopper] | bool
 
 
-def grid_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor],
-                                 val_data: tuple[torch.Tensor, torch.Tensor],
+def grid_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor] | tuple[pd.DataFrame, pd.DataFrame],
+                                 val_data: tuple[torch.Tensor, torch.Tensor] | tuple[pd.DataFrame, pd.DataFrame],
+                                 dataloader_builder: callable,
+                                 dataloader_parameters_unpacking_strategy: callable,
+                                 variable_dataloader_parameters: Optional[list[str]],
                                  shuffle: bool,
                                  model_hyperparameters_to_test: list[dict[str, ANY]],
                                  training_hyperparameters_to_test: list[dict[str, FIT_PARAMETER_TYPES]],
@@ -54,24 +57,30 @@ def grid_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor],
 
     :param train_data: A tuple containing training data (input and labels).
     :param val_data: A tuple containing validation data (input and labels).
+    :param dataloader_builder: A callable function to build a PyTorch DataLoader.
+    :param dataloader_parameters_unpacking_strategy: A callable function to unpack dataloader parameters.
+    :param variable_dataloader_parameters: Optional list of variable dataloader parameters.
     :param shuffle: A boolean flag indicating whether to shuffle the data during training.
     :param model_hyperparameters_to_test: A list of dictionaries, each specifying model hyperparameters to test.
     :param training_hyperparameters_to_test: A list of dictionaries, each specifying training hyperparameters to test.
     :param hyperparameters_key_to_save: A list of hyperparameter keys to save in the result dataframe.
     :param device: The device (e.g., 'cpu' or 'cuda:0') to run the model training on.
-    :param path_to_grid_search_results: path to the file storing the grid search results.
+    :param path_to_grid_search_results: Path to the file storing the grid search results.
     :param n_tests_per_run: The number of tests to run for each combination of hyperparameters.
     :param seeds: List of the seeds for reproducibility of the results of the grid search.
 
     :return: A pandas DataFrame containing the results of the grid search, including hyperparameters and performance metrics.
 
-    :Example: path_to_grid_search_results = 'results/grid_search.pkl'
-
+    :Example:
+        # Example usage
+        path_to_grid_search_results = 'results/grid_search.pkl'
         n_tests_per_run = 3
 
+        # Define optimization parameters
         optimizers = [OptimizerWrapper(torch.optim.Adam, identifier=f'lr={10**i}', optimizer_partial_params={'lr':10 ** i} for i in range(-2, -5, -1)]
         batch_sizes = [2 ** i for i in range(5, 7)]
 
+        # Define criteria, early stoppers, and metrics
         criteria_and_early_stoppers = []
         for i, w in enumerate(weights_strategies):
             criterion = Criterion(f'weighted_cross_entropy_{i}', loss_function=torch.nn.CrossEntropyLoss(reduction='none', weight=w), reduction_function=torch.mean)
@@ -80,7 +89,7 @@ def grid_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor],
 
         metrics = [[F1_Score('F1_macro', N_CLASSES, mode='macro', classes_to_exclude=CLASS_INDEXES_TO_EXCLUDE_1)]]
 
-
+        # Define model hyperparameters to test
         model_hyperparameters_to_test = [{'model_class': BaselineModel,
                                           'vocabulary': TRAIN_VOCABULARY,
                                           'embedding_dim': EMBEDDING_DIMENSION,
@@ -93,7 +102,7 @@ def grid_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor],
                                           'num_layers': 1,
                                          } for i in range(100, 500, 100)]
 
-
+        # Define training hyperparameters to test
         training_hyperparameters_to_test = [{'num_epochs': 200,
                                              'optimizer': p[0],
                                              'batch_size': p[1],
@@ -102,10 +111,15 @@ def grid_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor],
                                              'early_stopper': p[2][1]
                                              } for p in itertools.product(optimizers, batch_sizes, criteria_and_early_stoppers, metrics)]
 
+        # Define hyperparameters to save in the result dataframe
         hyperparameters_key_to_save = ['hidden_size', 'num_layers', 'optimizer', 'criterion', 'batch_size']
 
+        # Perform grid search train validation
         grid_search_train_validation(train_data=(torch.tensor(train_sentences_mapped), torch.tensor(train_pos_mapped)),
                                      val_data=(torch.tensor(val_sentences_mapped), torch.tensor(val_pos_mapped)),
+                                     dataloader_builder=your_dataloader_builder_function,
+                                     dataloader_parameters_unpacking_strategy=your_dataloader_parameters_unpacking_strategy,
+                                     variable_dataloader_parameters=your_variable_dataloader_parameters,
                                      shuffle=True,
                                      model_hyperparameters_to_test=model_hyperparameters_to_test,
                                      training_hyperparameters_to_test=training_hyperparameters_to_test,
@@ -114,16 +128,19 @@ def grid_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor],
                                      device=device,
                                      path_to_grid_search_results=path_to_grid_search_results)
 
+        # Load and inspect grid search results
         grid_search_results = joblib.load(path_to_grid_search_results)
 
     """
 
-    iterator = tqdm(
-        iterable=enumerate(itertools.product(training_hyperparameters_to_test, model_hyperparameters_to_test)),
-        total=len(training_hyperparameters_to_test) * len(model_hyperparameters_to_test))
+    iterator = tqdm(iterable=enumerate(itertools.product(training_hyperparameters_to_test, model_hyperparameters_to_test)),
+                    total=len(training_hyperparameters_to_test) * len(model_hyperparameters_to_test))
 
     return collect_results(train_data=train_data,
                            val_data=val_data,
+                           dataloader_builder=dataloader_builder,
+                           dataloader_parameters_unpacking_strategy=dataloader_parameters_unpacking_strategy,
+                           variable_dataloader_parameters=variable_dataloader_parameters,
                            iterator=iterator,
                            shuffle=shuffle,
                            device=device,
@@ -133,8 +150,11 @@ def grid_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor],
                            seeds=seeds)
 
 
-def randomized_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor],
-                                       val_data: tuple[torch.Tensor, torch.Tensor],
+def randomized_search_train_validation(train_data: tuple[torch.Tensor, torch.Tensor] | tuple[pd.DataFrame, pd.DataFrame],
+                                       val_data: tuple[torch.Tensor, torch.Tensor] | tuple[pd.DataFrame, pd.DataFrame],
+                                       dataloader_builder: callable,
+                                       dataloader_parameters_unpacking_strategy: callable,
+                                       variable_dataloader_parameters: Optional[list[str]],
                                        shuffle: bool,
                                        model_hyperparameters_to_sample: dict[str, ANY],
                                        training_hyperparameters_to_sample: dict[str, ANY],
@@ -145,24 +165,29 @@ def randomized_search_train_validation(train_data: tuple[torch.Tensor, torch.Ten
                                        n_tests_per_run: Optional[int] = None,
                                        seeds: Optional[list[int]] = None) -> pd.DataFrame:
     """
-   Perform randomized hyperparameter search for a deep learning model.
+    Perform a randomize search train validation over a combination of model and training hyperparameters for a
+    deep learning model.
 
-   :param train_data: Tuple containing training input data and labels.
-   :param val_data: Tuple containing validation input data and labels.
-   :param shuffle: Boolean indicating whether to shuffle the data during training.
-   :param model_hyperparameters_to_sample: Dictionary of model hyperparameter names and functions to sample values.
-   :param training_hyperparameters_to_sample: Dictionary of training hyperparameter names and functions to sample values.
-   :param hyperparameters_key_to_save: List of hyperparameter names to save in the resulting DataFrame.
-   :param n_run: Number of runs for the randomized search.
-   :param device: Device on which to perform the training (e.g., 'cpu' or 'cuda:0').
-   :param path_to_randomized_search_results: path to the file storing the randomized search results.
-   :param n_tests_per_run: The number of tests to run for each combination of hyperparameters.
-   :param seeds: List of the seeds for reproducibility of the results of the grid search.
+    :param train_data: Tuple containing training input data and labels.
+    :param val_data: Tuple containing validation input data and labels.
+    :param dataloader_builder: A callable function to build a PyTorch DataLoader.
+    :param dataloader_parameters_unpacking_strategy: A callable function to unpack dataloader parameters.
+    :param variable_dataloader_parameters: Optional list of variable dataloader parameters.
+    :param shuffle: Boolean indicating whether to shuffle the data during training.
+    :param model_hyperparameters_to_sample: Dictionary of model hyperparameter names and functions to sample values.
+    :param training_hyperparameters_to_sample: Dictionary of training hyperparameter names and functions to sample values.
+    :param hyperparameters_key_to_save: List of hyperparameter names to save in the resulting DataFrame.
+    :param n_run: Number of runs for the randomized search.
+    :param device: Device on which to perform the training (e.g., 'cpu' or 'cuda:0').
+    :param path_to_randomized_search_results: path to the file storing the randomized search results.
+    :param n_tests_per_run: The number of tests to run for each combination of hyperparameters.
+    :param seeds: List of the seeds for reproducibility of the results of the grid search.
 
-   :return: DataFrame containing the results of the randomized search.
+    :return: DataFrame containing the results of the randomized search.
 
-   :Example: .... #todo bisogna inserire gli esempi per descrive i modi in cui si puiò utilizzare
+    :Example: .... #todo bisogna inserire gli esempi per descrive i modi in cui si puiò utilizzare
     """
+
     model_hyperparameters_to_test = []
     training_hyperparameters_to_test = []
 
@@ -189,6 +214,9 @@ def randomized_search_train_validation(train_data: tuple[torch.Tensor, torch.Ten
 
     return collect_results(train_data=train_data,
                            val_data=val_data,
+                           dataloader_builder=dataloader_builder,
+                           dataloader_parameters_unpacking_strategy=dataloader_parameters_unpacking_strategy,
+                           variable_dataloader_parameters=variable_dataloader_parameters,
                            iterator=iterator,
                            shuffle=shuffle,
                            device=device,
@@ -200,6 +228,9 @@ def randomized_search_train_validation(train_data: tuple[torch.Tensor, torch.Ten
 
 def collect_results(train_data: tuple[torch.Tensor, torch.Tensor],
                     val_data: tuple[torch.Tensor, torch.Tensor],
+                    dataloader_builder: callable,
+                    dataloader_parameters_unpacking_strategy: callable,
+                    variable_dataloader_parameters: Optional[list[str]],
                     iterator: ANY,
                     shuffle: bool,
                     device: str,
@@ -214,6 +245,9 @@ def collect_results(train_data: tuple[torch.Tensor, torch.Tensor],
     :param train_data: A tuple containing training input data and labels.
     :param val_data: A tuple containing validation input data and labels.
     :param iterator: An iterator providing hyperparameters for both training and the model architecture.
+    :param dataloader_builder: A callable function to build a PyTorch DataLoader.
+    :param dataloader_parameters_unpacking_strategy: A callable function to unpack dataloader parameters.
+    :param variable_dataloader_parameters: Optional list of variable dataloader parameters.
     :param shuffle: A boolean indicating whether to shuffle the training data during training.
     :param device: Device on which to perform the training (e.g., 'cpu' or 'cuda').
     :param hyperparameters_key_to_save: List of keys specifying which hyperparameters to save in the result DataFrame.
@@ -267,10 +301,22 @@ def collect_results(train_data: tuple[torch.Tensor, torch.Tensor],
         early_stopper_exist = 'early_stopper' in training_hyperparameters and training_hyperparameters[
             'early_stopper'] is not None
 
-        train_data_loader = get_std_data_loader(data=train_input, label=train_labels,
-                                                batch_size=training_hyperparameters['batch_size'], shuffle=shuffle)
-        val_data_loader = get_std_data_loader(data=val_input, label=val_labels,
-                                              batch_size=training_hyperparameters['batch_size'], shuffle=False)
+        total_hyperparameter = {**training_hyperparameters, **model_hyperparameters}
+
+        if variable_dataloader_parameters is not None:
+            data_loader_parameters = {parameter: total_hyperparameter[parameter] for parameter in variable_dataloader_parameters}
+        else:
+            data_loader_parameters = None
+
+        train_data_loader = dataloader_builder(data=train_input,
+                                               labels=train_labels,
+                                               shuffle=shuffle,
+                                               **dataloader_parameters_unpacking_strategy(data_loader_parameters))
+
+        val_data_loader = dataloader_builder(data=val_input,
+                                             labels=val_labels,
+                                             shuffle=False,
+                                             **dataloader_parameters_unpacking_strategy(data_loader_parameters))
 
         new_training_hyperparameters = training_hyperparameters.copy()
         new_training_hyperparameters.pop('batch_size')

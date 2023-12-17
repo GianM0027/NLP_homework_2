@@ -5,6 +5,8 @@ import transformers
 
 from drTorch.modules import TrainableModule
 
+
+from typing import Union
 bert_model = transformers.BertModel | transformers.RobertaModel
 
 
@@ -13,7 +15,7 @@ class BerThree(TrainableModule):
     def __init__(self,
                  dropout_prob: float = 0.3,
                  hidden_size: int = 768,
-                 bert_version: os.path = './bert_models/bert-base-uncased',
+                 pretrained_model_name_or_path: Union[str,os.path] = 'bert-base-uncased',
                  bert_constructor: bert_model = transformers.BertModel):
         # todo documentation
         """
@@ -23,8 +25,8 @@ class BerThree(TrainableModule):
         """
         super(BerThree, self).__init__()
 
-        self.bert_1 = bert_constructor.from_pretrained(bert_version)
-        self.bert_2 = bert_constructor.from_pretrained(bert_version)
+        self.bert_1 = bert_constructor.from_pretrained(pretrained_model_name_or_path)
+        self.bert_2 = bert_constructor.from_pretrained(pretrained_model_name_or_path)
 
         self.drop_out = torch.nn.Dropout(dropout_prob)
 

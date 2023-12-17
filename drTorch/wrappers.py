@@ -97,13 +97,16 @@ class Criterion:
             predicted_labels = predicted_labels.to(self.loss_function.weight.device)
             target_labels = target_labels.to(self.loss_function.weight.device)
 
+        """        
         pl_reshaped = torch.reshape(predicted_labels,
-                                    (np.prod(predicted_labels.shape) // predicted_labels.shape[-1],
-                                     predicted_labels.shape[-1]))
+                                            (np.prod(predicted_labels.shape) // predicted_labels.shape[-1],
+                                             predicted_labels.shape[-1]))
         tl_reshaped = torch.reshape(target_labels,
-                                    (np.prod(target_labels.shape) // target_labels.shape[-1], target_labels.shape[-1]))
-
+                                            (np.prod(target_labels.shape) // target_labels.shape[-1], target_labels.shape[-1]))
+        
         output = self.loss_function(pl_reshaped, tl_reshaped)
+        """
+        output = self.loss_function(predicted_labels, target_labels)
 
         if hasattr(self.loss_function, 'weight') and self.loss_function.weight is not None:
             output = output.to(output_device)
