@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Union
 
 from .wrappers import Criterion, OptimizerWrapper
 from .metrics import Metric
@@ -28,8 +29,36 @@ class TrainableModule(torch.nn.Module):
     def __init__(self):
         super(TrainableModule, self).__init__()
 
-    def __to_device(self, data, device):
-        # todo documentation
+    def __to_device(self,
+                    data: Union[torch.tensor, dict, list],
+                    device: torch.device) -> Union[torch.tensor, dict, list]:
+        """
+        Transfers the input data or nested data structures to the specified PyTorch device.
+
+        :params: data : The input data or nested data structures to be transferred.
+        :params: device The target PyTorch device.
+        :returns: torch.Tensor or dict or list or other: The data or nested data structures transferred to the specified device.
+
+        Notes:
+        - For torch.Tensor objects, the method uses the `to` method to transfer the tensor to the specified device.
+        - For dictionaries, the method recursively applies itself to each value in the dictionary.
+        - For lists, the method recursively applies itself to each element in the list.
+        - Other data types are returned unchanged.
+
+        Example:
+        ```python
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        data = {
+            'image': torch.rand((3, 256, 256)),
+            'mask': torch.tensor([0, 1, 2])
+        }
+
+        transformed_data = __to_device(data, device)
+        ```
+
+        In this example, the `image` tensor and the `mask` tensor inside the `data` dictionary are transferred to the specified device.
+        """
+
         if isinstance(data, torch.Tensor):
             return data.to(device)
         elif isinstance(data, dict):
@@ -73,14 +102,7 @@ class TrainableModule(torch.nn.Module):
                 inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(
                     next(self.parameters()).device)
                 outputs = self(inputs)
-                """
-                outputs_reshaped = torch.reshape(outputs,
-                                                 (np.prod(outputs.shape) // outputs.shape[-1], outputs.shape[-1]))
-                labels_reshaped = torch.reshape(labels, (np.prod(labels.shape) // labels.shape[-1], labels.shape[-1]))
-                loss = criterion(outputs_reshaped, labels_reshaped)
-                """
                 loss = criterion(outputs, labels)
-
                 predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1].view(-1)
                 labels_id = torch.max(labels, len(labels.shape) - 1)[1].view(-1)
                 if aggregate_loss_on_dataset:
@@ -212,19 +234,16 @@ class TrainableModule(torch.nn.Module):
         return {'train': train_history, 'val': val_history}
 
     def predict(self,
-                data: torch.Tensor,
-                batch_size: int = 32) -> torch.Tensor:
+                data: torch.Tensor) -> torch.Tensor:
         """
         Generate predictions for the given input data using the trained model.
 
         :param data: Input data for which predictions are to be generated.
-        :param batch_size: Batch size for data loading during prediction.
         :return: Tensor containing the predicted labels.
         """
         predicted_labels = torch.empty((0,)).to(data.device)
-        data_loader = torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=False)
-        for batch_data in iter(batch for batch in data_loader):
-            batch_data = batch_data.to(next(self.parameters()).device)
+        for batch_data in iter(batch for batch in data):
+            batch_data = self.__to_device(data=batch_data, device=next(self.parameters()).device)
             batch_output = self(batch_data)
             batch_output = torch.max(batch_output, len(batch_output.shape) - 1)[1]
             predicted_labels = torch.cat((predicted_labels, batch_output.to(data.device)), 0)

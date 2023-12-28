@@ -3,4 +3,5 @@ drTorch/__pycache__/
 models/__pycache__/
 
 .idea
-bert_models
+bert_models/
+results/weights/

@@ -1,6 +1,11 @@
 import numpy as np
 
+
 class MajorityClassifier:
+
+    def __init__(self):
+        self.majority_class = None
+
     def fit(self, y):
         most_frequent = list()
         for column in y.columns:
@@ -9,7 +14,4 @@ class MajorityClassifier:
         self.majority_class = most_frequent
 
     def predict(self, X):
-
         return np.full(X.shape, self.majority_class)
-
-
