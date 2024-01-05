@@ -341,11 +341,11 @@ def build_dataloader(data: pd.DataFrame,
         else:
             tmp_dict[input_feature] = torch.tensor((data[input_feature].to_numpy() == 'in favor of').astype(int))
 
-    train_labels_tensor = torch.tensor([[one_hot_mapping[element] for element in row] for row in labels.values])
+    labels_tensor = torch.tensor([[one_hot_mapping[element] for element in row] for row in labels.values])
 
-    custom_train_dataset = custom_dataset_builder(tmp_dict, train_labels_tensor)
+    custom_dataset = custom_dataset_builder(tmp_dict, labels_tensor)
 
-    dataloader = torch.utils.data.DataLoader(custom_train_dataset,
+    dataloader = torch.utils.data.DataLoader(custom_dataset,
                                              batch_size=batch_size,
                                              shuffle=shuffle)
 

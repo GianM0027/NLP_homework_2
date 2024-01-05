@@ -233,19 +233,19 @@ class TrainableModule(torch.nn.Module):
 
         return {'train': train_history, 'val': val_history}
 
-    def predict(self,
-                data: torch.Tensor) -> torch.Tensor:
+    def predict(self, data: Union[torch.Tensor, dict]) -> torch.Tensor:
         """
         Generate predictions for the given input data using the trained model.
 
         :param data: Input data for which predictions are to be generated.
         :return: Tensor containing the predicted labels.
         """
-        predicted_labels = torch.empty((0,)).to(data.device)
-        for batch_data in iter(batch for batch in data):
+        predicted_labels_list = []
+        for batch_data, _ in data:
             batch_data = self.__to_device(data=batch_data, device=next(self.parameters()).device)
             batch_output = self(batch_data)
             batch_output = torch.max(batch_output, len(batch_output.shape) - 1)[1]
-            predicted_labels = torch.cat((predicted_labels, batch_output.to(data.device)), 0)
+            predicted_labels_list.append(batch_output)
 
+        predicted_labels = torch.cat(predicted_labels_list, dim=0)
         return predicted_labels

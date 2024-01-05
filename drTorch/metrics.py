@@ -241,6 +241,7 @@ class F1_Score_Multi_Labels(F1_Score):
                  target_classes: torch.Tensor,  # torch tensor 1-d
                  accumulate_statistic: bool = False):
 
+
         predicted_classes = predicted_classes.reshape(-1, self.num_labels)
         target_classes = target_classes.reshape(-1, self.num_labels)
 
