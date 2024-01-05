@@ -2,7 +2,7 @@ from typing import Any
 from typing import Union
 
 from .wrappers import Criterion, OptimizerWrapper
-from .metrics import Metric
+from .metrics import Metric, F1_Score_Multi_Labels
 from .callbacks import EarlyStopper
 
 import time
@@ -240,12 +240,37 @@ class TrainableModule(torch.nn.Module):
         :param data: Input data for which predictions are to be generated.
         :return: Tensor containing the predicted labels.
         """
+
         predicted_labels_list = []
-        for batch_data, _ in data:
-            batch_data = self.__to_device(data=batch_data, device=next(self.parameters()).device)
-            batch_output = self(batch_data)
+        for batch_data, y in data:
+            batch_data_device = self.__to_device(data=batch_data, device=next(self.parameters()).device)
+            batch_output = self(batch_data_device)
             batch_output = torch.max(batch_output, len(batch_output.shape) - 1)[1]
             predicted_labels_list.append(batch_output)
+            del batch_data_device
 
         predicted_labels = torch.cat(predicted_labels_list, dim=0)
+        return predicted_labels
+
+    def predict2(self, data: Union[torch.Tensor, dict]) -> torch.Tensor:
+        """
+        Generate predictions for the given input data using the trained model.
+
+        :param data: Input data for which predictions are to be generated.
+        :return: Tensor containing the predicted labels.
+        """
+        f1_scorer = F1_Score_Multi_Labels(name='F1_macro_avg', num_labels=4, num_classes=2,
+                                          compute_mean=False)
+
+        predicted_labels_list = []
+        for batch_data, y in data:
+            batch_data_device = self.__to_device(data=batch_data, device=next(self.parameters()).device)
+            batch_output = self(batch_data_device)
+            batch_output = torch.max(batch_output, len(batch_output.shape) - 1)[1]
+            predicted_labels_list.append(batch_output)
+            del batch_data_device
+            f1_scorer.update_state(batch_output.view(-1), torch.max(y, len(y.shape) - 1)[1].view(-1))
+
+        predicted_labels = torch.cat(predicted_labels_list, dim=0)
+        print(f1_scorer.get_result())
         return predicted_labels

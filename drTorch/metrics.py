@@ -117,7 +117,7 @@ class F1_Score(Metric):
 
     def __call__(self,
                  predicted_classes: torch.Tensor,  # torch tensor 1-d
-                 target_classes: torch.Tensor,
+                 target_classes: torch.Tensor,     # torch tensor 1-d
                  accumulate_statistic: bool = False):
         """
         Compute the F1 Score based on predicted and target classes.
@@ -237,21 +237,22 @@ class F1_Score_Multi_Labels(F1_Score):
         self.compute_mean = compute_mean
 
     def __call__(self,
-                 predicted_classes: torch.Tensor,  # torch tensor 1-d
-                 target_classes: torch.Tensor,  # torch tensor 1-d
+                 predicted_classes: torch.Tensor,    # torch tensor 1-d
+                 target_classes: torch.Tensor,       # torch tensor 1-d
                  accumulate_statistic: bool = False):
 
-
         predicted_classes = predicted_classes.reshape(-1, self.num_labels)
+
         target_classes = target_classes.reshape(-1, self.num_labels)
 
         scores = []
 
         for i in range(self.num_labels):
-            test_labels_flat = target_classes[:, i]
-            y_pred_flat = predicted_classes[:, i]
+            target_labels_flat = target_classes[:, i]
+            pred_labels_flat = predicted_classes[:, i]
 
-            scores.append(super().__call__(y_pred_flat, test_labels_flat))
+            print(target_labels_flat.shape)
+            scores.append(super().__call__(pred_labels_flat, target_labels_flat))
 
         if self.compute_mean:
             output = sum(scores) / len(scores)
