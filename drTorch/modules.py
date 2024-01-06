@@ -1,3 +1,20 @@
+"""
+
+
+
+ /$$$$$$$         /$$$$$$$$                            /$$
+| $$__  $$       |__  $$__/                           | $$
+| $$  \ $$  /$$$$$$ | $$  /$$$$$$   /$$$$$$   /$$$$$$$| $$$$$$$
+| $$  | $$ /$$__  $$| $$ /$$__  $$ /$$__  $$ /$$_____/| $$__  $$
+| $$  | $$| $$  \__/| $$| $$  \ $$| $$  \__/| $$      | $$  \ $$
+| $$  | $$| $$      | $$| $$  | $$| $$      | $$      | $$  | $$
+| $$$$$$$/| $$      | $$|  $$$$$$/| $$      |  $$$$$$$| $$  | $$
+|_______/ |__/      |__/ \______/ |__/       \_______/|__/  |__/
+
+
+
+"""
+
 from typing import Any
 from typing import Union
 
@@ -99,12 +116,11 @@ class TrainableModule(torch.nn.Module):
         self.eval()
         with torch.no_grad():
             for batch_idx, (inputs, labels) in enumerate(data_loader):
-                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(
-                    next(self.parameters()).device)
+                inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(next(self.parameters()).device)
                 outputs = self(inputs)
                 loss = criterion(outputs, labels)
-                predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1].view(-1)
-                labels_id = torch.max(labels, len(labels.shape) - 1)[1].view(-1)
+                predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1]
+                labels_id = torch.max(labels, len(labels.shape) - 1)[1]
                 if aggregate_loss_on_dataset:
                     aggregated_losses = torch.cat((aggregated_losses, loss.to('cpu')))
                 else:
@@ -179,8 +195,8 @@ class TrainableModule(torch.nn.Module):
                 optimizer.step()
                 metrics_value = []
 
-                predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1].view(-1)
-                labels_id = torch.max(labels, len(labels.shape) - 1)[1].view(-1)
+                predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1]
+                labels_id = torch.max(labels, len(labels.shape) - 1)[1]
 
                 for metric in metrics:
                     metrics_value.append(metric(predicted_class_id, labels_id))
@@ -259,8 +275,11 @@ class TrainableModule(torch.nn.Module):
         :param data: Input data for which predictions are to be generated.
         :return: Tensor containing the predicted labels.
         """
-        f1_scorer = F1_Score_Multi_Labels(name='F1_macro_avg', num_labels=4, num_classes=2,
-                                          compute_mean=False)
+
+        f1_scorer = F1_Score_Multi_Labels(name='F1_macro_avg',
+                                          num_labels=4,
+                                          num_classes=2,
+                                          compute_mean=True)
 
         predicted_labels_list = []
         for batch_data, y in data:
@@ -268,8 +287,9 @@ class TrainableModule(torch.nn.Module):
             batch_output = self(batch_data_device)
             batch_output = torch.max(batch_output, len(batch_output.shape) - 1)[1]
             predicted_labels_list.append(batch_output)
-            del batch_data_device
             f1_scorer.update_state(batch_output.view(-1), torch.max(y, len(y.shape) - 1)[1].view(-1))
+
+            del batch_data_device
 
         predicted_labels = torch.cat(predicted_labels_list, dim=0)
         print(f1_scorer.get_result())

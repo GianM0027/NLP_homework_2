@@ -17,6 +17,7 @@
 
 import torch
 from matplotlib import pyplot as plt
+import numpy as np
 
 
 def get_std_data_loader(batch_size: int,
@@ -54,12 +55,13 @@ def get_std_data_loader(batch_size: int,
     return torch.utils.data.DataLoader(torch_dataSet, batch_size=batch_size, shuffle=shuffle)
 
 
-def plot_history(history: dict[str, list[float]]) -> None:
+def plot_history(history: dict[str, list[float]], patience: int = None) -> None:
     """
     Plot training and validation history for each metric.
 
     Parameters:
     :param history: A dictionary containing training and validation metrics history.
+    :param patience: Number of epochs for patience circle (if None, no circle will be plotted).
 
     Notes:
     - Assumes a dictionary structure with 'train' and 'val' keys, each containing metrics as subkeys.
@@ -67,7 +69,7 @@ def plot_history(history: dict[str, list[float]]) -> None:
 
     Example:
     # Assuming `history` contains your training and validation history
-    plot_history(your_history_variable)
+    plot_history(your_history_variable, patience=5)
     """
     metrics = list(history['train'].keys())  # Assuming all metrics are present in the 'train' field
     num_metrics = len(metrics)
@@ -75,8 +77,15 @@ def plot_history(history: dict[str, list[float]]) -> None:
     fig, axes = plt.subplots(num_metrics, 1, figsize=(10, 5 * num_metrics))
 
     for i, metric in enumerate(metrics):
-        axes[i].plot(history['train'][metric], label='Training')
-        axes[i].plot(history['val'][metric], label='Validation')
+        epochs = range(1, len(history['train'][metric]) + 1)
+        axes[i].plot(epochs, history['train'][metric], label='Training')
+        axes[i].plot(epochs, history['val'][metric], label='Validation')
+
+        if patience is not None:
+            idx_last_patience = len(history['val'][metric]) - patience
+            max_value = history['val'][metric][idx_last_patience - 1]
+            axes[i].scatter(idx_last_patience, max_value, color='red', marker='o', label=f'Best model obtained with patient = {patience}')
+
         axes[i].set_title(f'{metric} History')
         axes[i].set_xlabel('Epoch')
         axes[i].set_ylabel(metric)

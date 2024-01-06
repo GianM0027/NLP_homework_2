@@ -1,10 +1,3 @@
-from typing import Optional
-
-from abc import ABC, abstractmethod
-
-import torch
-import numpy as np
-
 """
 
 
@@ -21,6 +14,13 @@ import numpy as np
 
 
 """
+
+from typing import Optional
+
+from abc import ABC, abstractmethod
+
+import torch
+import numpy as np
 
 
 class Metric(ABC):
@@ -117,7 +117,7 @@ class F1_Score(Metric):
 
     def __call__(self,
                  predicted_classes: torch.Tensor,  # torch tensor 1-d
-                 target_classes: torch.Tensor,     # torch tensor 1-d
+                 target_classes: torch.Tensor,  # torch tensor 1-d
                  accumulate_statistic: bool = False):
         """
         Compute the F1 Score based on predicted and target classes.
@@ -223,40 +223,148 @@ class F1_Score(Metric):
         return result
 
 
-class F1_Score_Multi_Labels(F1_Score):
+class F1_Score_Multi_Labels:
     # todo documentation
+
     def __init__(self,
                  name: str,
                  num_classes: int,
                  num_labels: int,
-                 classes_to_exclude: Optional[list[int] | np.ndarray[int]] = None,
-                 compute_mean=True):
+                 mode: str = 'macro',
+                 compute_mean: bool = True,
+                 classes_to_exclude: Optional[list[int] | np.ndarray[int]] = None):
+        """
 
-        super().__init__(name=name, num_classes=num_classes, mode='macro', classes_to_exclude=classes_to_exclude)
+        :param name: Name of the metric.
+        :param num_classes:  Number of classes in the classification task.
+        :param mode: Computation mode for F1 Score ('none', 'macro', 'micro').
+        :param classes_to_exclude: Classes to exclude from the computation.
+
+        """
+
+        self.name = name
+        self.mode = mode
+        self.num_classes = num_classes
+        self.classes_to_exclude = classes_to_exclude if classes_to_exclude else []
+        self.classes_to_consider = np.arange(num_classes)[~np.isin(np.arange(num_classes), self.classes_to_exclude)]
         self.num_labels = num_labels
         self.compute_mean = compute_mean
 
+        self.tps = np.zeros((self.num_labels, self.num_classes))  # (4,2)
+        self.fps = np.zeros((self.num_labels, self.num_classes))
+        self.fns = np.zeros((self.num_labels, self.num_classes))
+
+    def update_state(self,
+                     predicted_classes: torch.Tensor,  # (B,L)
+                     target_classes: torch.Tensor) -> tuple[np.array, np.array, np.array]:
+        """
+        Update the internal state of the F1 Score metric.
+
+        :param predicted_classes: Predicted classes.
+        :param target_classes: Target (ground truth) classes.
+        :return: Tuple containing true positives, false positives, and false negatives.
+
+        """
+        tps = np.zeros((self.num_labels, self.num_classes))  # (4, 2)
+        fps = np.zeros((self.num_labels, self.num_classes))
+        fns = np.zeros((self.num_labels, self.num_classes))
+
+        for i in range(self.num_labels):
+            current_pred_class = predicted_classes[:, i].cpu().numpy()
+            current_target_classes = target_classes[:, i].cpu().numpy()
+
+            mask = ~np.isin(current_target_classes, self.classes_to_exclude)
+
+            current_pred_class = current_pred_class[mask]
+            current_target_classes = current_target_classes[mask]
+
+            confusion_matrix = np.zeros((self.num_classes, self.num_classes))
+            for predicted_id, target_id in zip(current_pred_class, current_target_classes):
+                confusion_matrix[predicted_id, target_id] += 1
+
+            tps[i] = np.diag(confusion_matrix)
+            fps[i] = np.sum(confusion_matrix, axis=1) - tps[i]
+            fns[i] = np.sum(confusion_matrix, axis=0) - tps[i]
+
+        self.tps += tps
+        self.fps += fps
+        self.fns += fns
+
+        return tps, fps, fns
+
+    def get_result(self) -> float:
+        """
+        Compute and return the final F1 Score result.
+
+        :return: Computed F1 Score.
+        """
+        eps = np.finfo(float).eps
+
+        denominators = 2 * self.tps + self.fps + self.fns
+        f1s = 2 * self.tps / (denominators + eps)
+
+        if self.mode == 'none':
+            result = f1s[:, self.classes_to_consider]
+        elif self.mode == 'macro':
+            result = np.mean(f1s[:, self.classes_to_consider], axis=1)
+        elif self.mode == 'micro':
+            result = 2 * np.sum(self.tps[:, self.classes_to_consider], axis=1) / np.sum(
+                denominators[:, self.classes_to_consider], axis=1)
+        else:
+            raise ValueError("Undefined mode specified, available modes are 'none','macro' and 'micro'")
+
+        if self.compute_mean:
+            result = np.mean(result)
+
+        return result
+
+    def reset_state(self) -> None:
+        """
+         Reset the internal state of the F1 Score metric.
+
+        :return: None
+        """
+        self.tps = np.zeros((self.num_labels, self.num_classes))
+        self.fps = np.zeros((self.num_labels, self.num_classes))
+        self.fns = np.zeros((self.num_labels, self.num_classes))
+
+    def __str__(self) -> str:
+        """
+        Get the name of the metric as a string.
+
+        :return: Name of the metric.
+        """
+        return self.name
+
+    def set_mode(self, compute_mean: bool):
+        self.compute_mean = not self.compute_mean
+
     def __call__(self,
-                 predicted_classes: torch.Tensor,    # torch tensor 1-d
-                 target_classes: torch.Tensor,       # torch tensor 1-d
+                 predicted_classes: torch.Tensor,
+                 target_classes: torch.Tensor,
                  accumulate_statistic: bool = False):
-
-        predicted_classes = predicted_classes.reshape(-1, self.num_labels)
-
-        target_classes = target_classes.reshape(-1, self.num_labels)
 
         scores = []
 
-        for i in range(self.num_labels):
-            target_labels_flat = target_classes[:, i]
-            pred_labels_flat = predicted_classes[:, i]
+        tps, fps, fns = self.update_state(predicted_classes, target_classes)
+        if not accumulate_statistic:
+            self.reset_state()
 
-            print(target_labels_flat.shape)
-            scores.append(super().__call__(pred_labels_flat, target_labels_flat))
+        eps = np.finfo(float).eps
+        denominators = 2 * tps + fps + fns
+        f1s = 2 * tps / (denominators + eps)
+
+        if self.mode == 'none':
+            result = f1s[:, self.classes_to_consider]
+        elif self.mode == 'macro':
+            result = np.mean(f1s[:, self.classes_to_consider], axis=1)
+        elif self.mode == 'micro':
+            result = 2 * np.sum(tps[:, self.classes_to_consider], axis=1) / np.sum(
+                denominators[:, self.classes_to_consider], axis=1)
+        else:
+            raise ValueError("Undefined mode specified, available modes are 'none','macro' and 'micro'")
 
         if self.compute_mean:
-            output = sum(scores) / len(scores)
-        else:
-            output = scores
+            result = np.mean(result)
 
-        return output
+        return result
