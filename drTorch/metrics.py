@@ -224,7 +224,56 @@ class F1_Score(Metric):
 
 
 class F1_Score_Multi_Labels:
-    # todo documentation
+    """
+        F1_Score_Multi_Labels class implements the F1 Score metric for multi-label classification tasks.
+
+        Args:
+            name (str): Name of the metric.
+            num_classes (int): Number of classes in the classification task.
+            num_labels (int): Number of labels associated with each sample.
+            mode (str, optional): Computation mode for F1 Score ('none', 'macro', 'micro'). Defaults to 'macro'.
+            compute_mean (bool, optional): Whether to compute the mean of F1 Scores. Defaults to True.
+            classes_to_exclude (list or np.ndarray, optional): Classes to exclude from the computation.
+
+        Attributes:
+            name (str): Name of the metric.
+            mode (str): Computation mode for F1 Score ('none', 'macro', 'micro').
+            num_classes (int): Number of classes in the classification task.
+            classes_to_exclude (list or np.ndarray): Classes to exclude from the computation.
+            classes_to_consider (np.ndarray): Classes to consider based on exclusion.
+            num_labels (int): Number of labels associated with each sample.
+            compute_mean (bool): Whether to compute the mean of F1 Scores.
+            tps (np.ndarray): True positives count.
+            fps (np.ndarray): False positives count.
+            fns (np.ndarray): False negatives count.
+
+        Methods:
+            update_state(predicted_classes: torch.Tensor, target_classes: torch.Tensor) -> tuple[np.array, np.array, np.array]:
+                Update the internal state of the F1 Score metric.
+            get_result() -> float:
+                Compute and return the final F1 Score result.
+            reset_state() -> None:
+                Reset the internal state of the F1 Score metric.
+            __str__() -> str:
+                Get the name of the metric as a string.
+            set_mode(compute_mean: bool) -> None:
+                Set the computation mode for mean.
+            __call__(predicted_classes: torch.Tensor, target_classes: torch.Tensor, accumulate_statistic: bool = False) -> float:
+                Update the state, compute F1 Scores, and return the result.
+
+        Raises:
+            ValueError: If an undefined mode is specified.
+
+        Notes:
+            This class is designed to works if each label has the same number of classes
+
+        Example:
+            ```python
+            f1_metric = F1_Score_Multi_Labels(name='F1_Score', num_classes=10, num_labels=5)
+            result = f1_metric(predicted_classes, target_classes)
+            ```
+
+        """
 
     def __init__(self,
                  name: str,
@@ -237,7 +286,9 @@ class F1_Score_Multi_Labels:
 
         :param name: Name of the metric.
         :param num_classes:  Number of classes in the classification task.
+        :param num_labels: Number of labels.
         :param mode: Computation mode for F1 Score ('none', 'macro', 'micro').
+        :param compute_mean: flag to compute the mean over the different labels.
         :param classes_to_exclude: Classes to exclude from the computation.
 
         """
@@ -265,13 +316,14 @@ class F1_Score_Multi_Labels:
         :return: Tuple containing true positives, false positives, and false negatives.
 
         """
+
         tps = np.zeros((self.num_labels, self.num_classes))  # (4, 2)
         fps = np.zeros((self.num_labels, self.num_classes))
         fns = np.zeros((self.num_labels, self.num_classes))
 
         for i in range(self.num_labels):
-            current_pred_class = predicted_classes[:, i].cpu().numpy()
-            current_target_classes = target_classes[:, i].cpu().numpy()
+            current_pred_class = predicted_classes[:, i].cpu().detach().numpy().astype(int)
+            current_target_classes = target_classes[:, i].cpu().detach().numpy().astype(int)
 
             mask = ~np.isin(current_target_classes, self.classes_to_exclude)
 
@@ -282,9 +334,9 @@ class F1_Score_Multi_Labels:
             for predicted_id, target_id in zip(current_pred_class, current_target_classes):
                 confusion_matrix[predicted_id, target_id] += 1
 
-            tps[i] = np.diag(confusion_matrix)
-            fps[i] = np.sum(confusion_matrix, axis=1) - tps[i]
-            fns[i] = np.sum(confusion_matrix, axis=0) - tps[i]
+            tps[i,:] = np.diag(confusion_matrix)
+            fps[i,:] = np.sum(confusion_matrix, axis=1) - tps[i]
+            fns[i,:] = np.sum(confusion_matrix, axis=0) - tps[i]
 
         self.tps += tps
         self.fps += fps
@@ -343,8 +395,6 @@ class F1_Score_Multi_Labels:
                  predicted_classes: torch.Tensor,
                  target_classes: torch.Tensor,
                  accumulate_statistic: bool = False):
-
-        scores = []
 
         tps, fps, fns = self.update_state(predicted_classes, target_classes)
         if not accumulate_statistic:

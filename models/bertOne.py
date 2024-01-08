@@ -51,11 +51,7 @@ class BertOne(TrainableModule):
 
         self.bert = bert_constructor.from_pretrained(pretrained_model_name_or_path)
         self.drop_out = torch.nn.Dropout(dropout_prob)
-
-        self.clf_opc = torch.nn.Linear(hidden_size, 2)
-        self.clf_se = torch.nn.Linear(hidden_size, 2)
-        self.clf_c = torch.nn.Linear(hidden_size, 2)
-        self.clf_st = torch.nn.Linear(hidden_size, 2)
+        self.classification_head = torch.nn.Linear(hidden_size, 4)
 
     def forward(self, kwards: dict) -> torch.Tensor:
         """
@@ -66,12 +62,7 @@ class BertOne(TrainableModule):
         """
         output_loss, output_logits = self.bert(**kwards['Conclusion'], return_dict=False)
         output = self.drop_out(output_logits)
-
-        output_clf_opc = self.clf_opc(output)
-        output_clf_se = self.clf_se(output)
-        output_clf_c = self.clf_c(output)
-        output_clf_st = self.clf_st(output)
-
-        output = torch.stack(tensors=(output_clf_opc, output_clf_se, output_clf_c, output_clf_st), dim=1)
+        output = self.classification_head(output)
+        output = torch.nn.functional.sigmoid(output)
 
         return output

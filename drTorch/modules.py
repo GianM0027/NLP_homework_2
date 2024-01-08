@@ -119,8 +119,9 @@ class TrainableModule(torch.nn.Module):
                 inputs, labels = self.__to_device(inputs, next(self.parameters()).device), labels.to(next(self.parameters()).device)
                 outputs = self(inputs)
                 loss = criterion(outputs, labels)
-                predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1]
-                labels_id = torch.max(labels, len(labels.shape) - 1)[1]
+
+                predicted_class_id = torch.round(outputs)
+
                 if aggregate_loss_on_dataset:
                     aggregated_losses = torch.cat((aggregated_losses, loss.to('cpu')))
                 else:
@@ -128,7 +129,7 @@ class TrainableModule(torch.nn.Module):
                     aggregated_losses = torch.cat((aggregated_losses, reduced_batch_loss.unsqueeze(0).to('cpu')))
 
                 for metric in metrics:
-                    metric.update_state(predicted_class_id, labels_id)
+                    metric.update_state(predicted_class_id, labels)
 
         results[criterion.name] = criterion.reduction_function(aggregated_losses).item()
 
@@ -195,11 +196,10 @@ class TrainableModule(torch.nn.Module):
                 optimizer.step()
                 metrics_value = []
 
-                predicted_class_id = torch.max(outputs, len(outputs.shape) - 1)[1]
-                labels_id = torch.max(labels, len(labels.shape) - 1)[1]
+                predicted_class_id = torch.round(outputs)
 
                 for metric in metrics:
-                    metrics_value.append(metric(predicted_class_id, labels_id))
+                    metrics_value.append(metric(predicted_class_id, labels))
 
                 if verbose:
                     out_str = f"\r Epoch: {epoch + 1}/{num_epochs} Iterations: {iteration + 1}/{iterations_per_epoch} - {criterion.name}: {loss.item()}"
@@ -266,31 +266,4 @@ class TrainableModule(torch.nn.Module):
             del batch_data_device
 
         predicted_labels = torch.cat(predicted_labels_list, dim=0)
-        return predicted_labels
-
-    def predict2(self, data: Union[torch.Tensor, dict]) -> torch.Tensor:
-        """
-        Generate predictions for the given input data using the trained model.
-
-        :param data: Input data for which predictions are to be generated.
-        :return: Tensor containing the predicted labels.
-        """
-
-        f1_scorer = F1_Score_Multi_Labels(name='F1_macro_avg',
-                                          num_labels=4,
-                                          num_classes=2,
-                                          compute_mean=True)
-
-        predicted_labels_list = []
-        for batch_data, y in data:
-            batch_data_device = self.__to_device(data=batch_data, device=next(self.parameters()).device)
-            batch_output = self(batch_data_device)
-            batch_output = torch.max(batch_output, len(batch_output.shape) - 1)[1]
-            predicted_labels_list.append(batch_output)
-            f1_scorer.update_state(batch_output.view(-1), torch.max(y, len(y.shape) - 1)[1].view(-1))
-
-            del batch_data_device
-
-        predicted_labels = torch.cat(predicted_labels_list, dim=0)
-        print(f1_scorer.get_result())
         return predicted_labels

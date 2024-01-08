@@ -305,7 +305,6 @@ def calculate_class_weights(dataframe):
 
 def build_dataloader(data: pd.DataFrame,
                      labels: pd.DataFrame,
-                     one_hot_mapping: dict[str, int],
                      pretrained_model_name_or_path: os.path,
                      tokenizer_constructor: bert_tokenizer,
                      model_input: list[str],
@@ -317,7 +316,6 @@ def build_dataloader(data: pd.DataFrame,
 
     :param data: Input data stored in a pandas DataFrame.
     :param labels: Labels associated with the input data in a pandas DataFrame.
-    :param one_hot_mapping: A dictionary mapping label names to corresponding one-hot encoded integer values.
     :param pretrained_model_name_or_path: The name or path of a pretrained BERT model.
     :param tokenizer_constructor: A constructor for the BERT tokenizer.
     :param model_input: A list of input features to be tokenized by the BERT tokenizer.
@@ -341,9 +339,7 @@ def build_dataloader(data: pd.DataFrame,
         else:
             tmp_dict[input_feature] = torch.tensor((data[input_feature].to_numpy() == 'in favor of').astype(int))
 
-    labels_tensor = torch.tensor([[one_hot_mapping[element] for element in row] for row in labels.values])
-
-    custom_dataset = custom_dataset_builder(tmp_dict, labels_tensor)
+    custom_dataset = custom_dataset_builder(tmp_dict, labels.values.astype('float32'))
 
     dataloader = torch.utils.data.DataLoader(custom_dataset,
                                              batch_size=batch_size,
