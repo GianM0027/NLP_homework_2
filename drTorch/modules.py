@@ -259,11 +259,12 @@ class TrainableModule(torch.nn.Module):
 
         predicted_labels_list = []
         for batch_data, y in data:
+
             batch_data_device = self.__to_device(data=batch_data, device=next(self.parameters()).device)
             batch_output = self(batch_data_device)
-            batch_output = torch.max(batch_output, len(batch_output.shape) - 1)[1]
+            batch_output = torch.round(batch_output).detach().cpu()
             predicted_labels_list.append(batch_output)
-            del batch_data_device
 
         predicted_labels = torch.cat(predicted_labels_list, dim=0)
+
         return predicted_labels

@@ -1,9 +1,13 @@
-import os
 from typing import Optional
+
+import os
 
 import torch
 import transformers
 
+from sklearn.metrics import confusion_matrix
+
+import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
@@ -13,7 +17,6 @@ bert_tokenizer = transformers.BertTokenizer | transformers.RobertaTokenizer
 
 
 class CustomDataset(torch.utils.data.Dataset):
-
     """
     A custom PyTorch Dataset class for handling generic data with corresponding labels.
 
@@ -41,7 +44,6 @@ class CustomDataset(torch.utils.data.Dataset):
 
 
 class CustomDataset_C(CustomDataset):
-
     """
     A subclass of CustomDataset for handling data with a 'Conclusion' component.
 
@@ -68,7 +70,6 @@ class CustomDataset_C(CustomDataset):
 
 
 class CustomDataset_CP(CustomDataset):
-
     """
     A subclass of CustomDataset for handling data with 'Conclusion' and 'Premise' components.
 
@@ -107,6 +108,7 @@ class CustomDataset_CPS(CustomDataset):
     Methods:
     - __getitem__: Returns a sample containing 'Conclusion', 'Premise', 'Stance' data, and its corresponding label given an index.
     """
+
     def __init__(self, data_dict, labels):
         super().__init__(data_dict, labels)
 
@@ -369,3 +371,57 @@ def unpacking_dataloader_builder_parameters_strategy(kwargs: Optional[dict]):
     model_version = os.path.basename(kwargs['pretrained_model_name_or_path'])
     kwargs['tokenizer_constructor'] = variable_parameters[model_version]
     return kwargs
+
+
+def plot_confusion_matrices(predictions: torch.Tensor,
+                            true_labels: torch.Tensor,
+                            same_color_bar: bool = False,
+                            title: str = None) -> None:
+    """
+    Visualizes confusion matrices for a multi-class classification problem.
+
+    :param predictions: PyTorch Tensor containing the model predictions for different classes.
+    :param true_labels: PyTorch Tensor containing the true labels associated with the data.
+    :param same_color_bar: If True, ensures that all subplots have the same color scale in the visualization. Default is False.
+    :param title: Optional general title for the entire plot.
+    :return: None
+    """
+
+    # Convert tensors to NumPy arrays if on GPU
+    predictions = predictions.cpu().numpy() if predictions.is_cuda else predictions.numpy()
+    true_labels = true_labels.cpu().numpy() if true_labels.is_cuda else true_labels.numpy()
+
+    # Class names
+    class_names = ['Openess_to_change', 'Self_enhancement', 'Conservation', 'Self_transcendence']
+    num_classes = len(class_names)
+
+    # Create figure and axes
+    fig, axes = plt.subplots(1, num_classes, figsize=(5 * num_classes, 4))
+
+    # Set general title if provided
+    if title:
+        fig.suptitle(title, fontsize=16)
+
+    # Initialize list for confusion matrices
+    cms = []
+    vmax = 0
+
+    # Compute confusion matrices for each class
+    for i in range(num_classes):
+        cm = confusion_matrix(true_labels[:, i], predictions[:, i])
+        cms.append(cm)
+        if same_color_bar:
+            vmax = max(vmax, np.max(cm))
+
+    vmax = vmax if same_color_bar else None
+
+    # Create subplots with confusion matrices
+    for i in range(num_classes):
+        sns.heatmap(cms[i], annot=True, fmt='d', cmap='Blues', ax=axes[i], vmax=vmax)
+        axes[i].set_title(class_names[i])
+        axes[i].set_xlabel('Predicted Labels')
+        axes[i].set_ylabel('True Labels')
+
+    # Optimize subplot arrangement and display
+    plt.tight_layout()
+    plt.show()

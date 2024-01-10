@@ -117,7 +117,7 @@ class F1_Score(Metric):
 
     def __call__(self,
                  predicted_classes: torch.Tensor,  # torch tensor 1-d
-                 target_classes: torch.Tensor,  # torch tensor 1-d
+                 target_classes: torch.Tensor,     # torch tensor 1-d
                  accumulate_statistic: bool = False):
         """
         Compute the F1 Score based on predicted and target classes.
@@ -395,6 +395,17 @@ class F1_Score_Multi_Labels:
                  predicted_classes: torch.Tensor,
                  target_classes: torch.Tensor,
                  accumulate_statistic: bool = False):
+
+        """
+        Compute for each label the F1 Score based on predicted and target classes.
+
+
+        :param predicted_classes: Predicted classes.
+        :param target_classes: Target (ground truth) classes.
+        :param accumulate_statistic: Whether to accumulate internal statistics.
+        :return: Computed F1 Score.
+
+        """
 
         tps, fps, fns = self.update_state(predicted_classes, target_classes)
         if not accumulate_statistic:
