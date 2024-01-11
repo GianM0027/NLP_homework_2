@@ -388,8 +388,8 @@ class F1_Score_Multi_Labels:
         """
         return self.name
 
-    def set_mode(self, compute_mean: bool):
-        self.compute_mean = not self.compute_mean
+    def set_mode(self, compute_mean_flag: bool):
+        self.compute_mean = compute_mean_flag
 
     def __call__(self,
                  predicted_classes: torch.Tensor,
