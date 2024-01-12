@@ -71,7 +71,8 @@ class F1_Score(Metric):
 
       Attributes:
         name (str): Name of the metric.
-        mode (str): Computation mode for F1 Score ('none', 'macro', 'micro').
+        mode (str): Computation mode for F1 Score ('none', 'binary','macro', 'micro').
+        pos_label: Used when mode='binary' to select the class you want to consider.
         num_classes (int): Number of classes in the classification task.
         classes_to_exclude (list[int] or np.ndarray[int]): Classes to exclude from the computation.
         classes_to_consider (np.ndarray[int]): Classes to consider for computation.
@@ -96,18 +97,21 @@ class F1_Score(Metric):
                  name: str,
                  num_classes: int,
                  mode: str = 'macro',
+                 pos_label: int = 1,
                  classes_to_exclude: Optional[list[int] | np.ndarray[int]] = None):
         """
 
         :param name: Name of the metric.
         :param num_classes:  Number of classes in the classification task.
         :param mode: Computation mode for F1 Score ('none', 'macro', 'micro').
+        :param pos_label: Used when mode='binary' to select the class you want to consider.
         :param classes_to_exclude: Classes to exclude from the computation.
 
         """
 
         self.name = name
         self.mode = mode
+        self.pos_label = pos_label
         self.num_classes = num_classes
         self.classes_to_exclude = classes_to_exclude if classes_to_exclude else []
         self.classes_to_consider = np.arange(num_classes)[~np.isin(np.arange(num_classes), self.classes_to_exclude)]
@@ -140,6 +144,8 @@ class F1_Score(Metric):
 
         if self.mode == 'none':
             result = f1s[self.classes_to_consider]
+        elif self.mode == 'binary':
+            result = f1s[self.pos_label]
         elif self.mode == 'macro':
             result = np.mean(f1s[self.classes_to_consider])
         elif self.mode == 'micro':
@@ -213,12 +219,14 @@ class F1_Score(Metric):
 
         if self.mode == 'none':
             result = f1s[self.classes_to_consider]
+        elif self.mode == 'binary':
+            result = f1s[self.pos_label]
         elif self.mode == 'macro':
             result = np.mean(f1s[self.classes_to_consider])
         elif self.mode == 'micro':
             result = 2 * np.sum(self.tps[self.classes_to_consider]) / np.sum(denominators[self.classes_to_consider])
         else:
-            raise ValueError("Undefined mode specified, available modes are 'none','macro' and 'micro'")
+            raise ValueError("Undefined mode specified, available modes are 'none', 'binary', 'macro' and 'micro'")
 
         return result
 
@@ -231,7 +239,8 @@ class F1_Score_Multi_Labels:
             name (str): Name of the metric.
             num_classes (int): Number of classes in the classification task.
             num_labels (int): Number of labels associated with each sample.
-            mode (str, optional): Computation mode for F1 Score ('none', 'macro', 'micro'). Defaults to 'macro'.
+            mode (str, optional): Computation mode for F1 Score ('none', 'macro', 'binary','micro'). Defaults to 'macro'.
+            pos_label (int): Used when mode='binary' to select the class you want to consider.
             compute_mean (bool, optional): Whether to compute the mean of F1 Scores. Defaults to True.
             classes_to_exclude (list or np.ndarray, optional): Classes to exclude from the computation.
 
@@ -280,6 +289,7 @@ class F1_Score_Multi_Labels:
                  num_classes: int,
                  num_labels: int,
                  mode: str = 'macro',
+                 pos_label: int = 1,
                  compute_mean: bool = True,
                  classes_to_exclude: Optional[list[int] | np.ndarray[int]] = None):
         """
@@ -287,7 +297,8 @@ class F1_Score_Multi_Labels:
         :param name: Name of the metric.
         :param num_classes:  Number of classes in the classification task.
         :param num_labels: Number of labels.
-        :param mode: Computation mode for F1 Score ('none', 'macro', 'micro').
+        :param mode: Computation mode for F1 Score ('none', 'macro', 'micro', 'binary').
+        :param pos_label: Used when mode='binary' to select the class you want to consider.
         :param compute_mean: flag to compute the mean over the different labels.
         :param classes_to_exclude: Classes to exclude from the computation.
 
@@ -295,18 +306,19 @@ class F1_Score_Multi_Labels:
 
         self.name = name
         self.mode = mode
+        self.pos_label = pos_label
         self.num_classes = num_classes
         self.classes_to_exclude = classes_to_exclude if classes_to_exclude else []
         self.classes_to_consider = np.arange(num_classes)[~np.isin(np.arange(num_classes), self.classes_to_exclude)]
         self.num_labels = num_labels
         self.compute_mean = compute_mean
 
-        self.tps = np.zeros((self.num_labels, self.num_classes))  # (4,2)
+        self.tps = np.zeros((self.num_labels, self.num_classes))
         self.fps = np.zeros((self.num_labels, self.num_classes))
         self.fns = np.zeros((self.num_labels, self.num_classes))
 
     def update_state(self,
-                     predicted_classes: torch.Tensor,  # (B,L)
+                     predicted_classes: torch.Tensor,
                      target_classes: torch.Tensor) -> tuple[np.array, np.array, np.array]:
         """
         Update the internal state of the F1 Score metric.
@@ -317,7 +329,7 @@ class F1_Score_Multi_Labels:
 
         """
 
-        tps = np.zeros((self.num_labels, self.num_classes))  # (4, 2)
+        tps = np.zeros((self.num_labels, self.num_classes))
         fps = np.zeros((self.num_labels, self.num_classes))
         fns = np.zeros((self.num_labels, self.num_classes))
 
@@ -357,6 +369,8 @@ class F1_Score_Multi_Labels:
 
         if self.mode == 'none':
             result = f1s[:, self.classes_to_consider]
+        elif self.mode == 'binary':
+            result = f1s[:, self.pos_label]
         elif self.mode == 'macro':
             result = np.mean(f1s[:, self.classes_to_consider], axis=1)
         elif self.mode == 'micro':
@@ -366,7 +380,10 @@ class F1_Score_Multi_Labels:
             raise ValueError("Undefined mode specified, available modes are 'none','macro' and 'micro'")
 
         if self.compute_mean:
-            result = np.mean(result)
+            if self.mode == 'none':
+                result = np.mean(result, axis=0)
+            else:
+                result = np.mean(result)
 
         return result
 
@@ -417,15 +434,19 @@ class F1_Score_Multi_Labels:
 
         if self.mode == 'none':
             result = f1s[:, self.classes_to_consider]
+        elif self.mode == 'binary':
+            result = f1s[:, self.pos_label]
         elif self.mode == 'macro':
             result = np.mean(f1s[:, self.classes_to_consider], axis=1)
         elif self.mode == 'micro':
-            result = 2 * np.sum(tps[:, self.classes_to_consider], axis=1) / np.sum(
-                denominators[:, self.classes_to_consider], axis=1)
+            result = 2 * np.sum(tps[:, self.classes_to_consider], axis=1) / np.sum(denominators[:, self.classes_to_consider], axis=1)
         else:
-            raise ValueError("Undefined mode specified, available modes are 'none','macro' and 'micro'")
+            raise ValueError("Undefined mode specified, available modes are 'none', 'binary', 'macro' and 'micro'")
 
         if self.compute_mean:
-            result = np.mean(result)
+            if self.mode == 'none':
+                result = np.mean(result, axis=0)
+            else:
+                result = np.mean(result)
 
         return result
