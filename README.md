@@ -51,10 +51,16 @@ The `models` folder contains the implementation of neural models, including:
 2. **BERT w/ CP:** BERT-based classifier with an additional input - argument premise (using bert-base-uncased or roberta-base).
 3. **BERT w/ CPS:** BERT-based classifier with inputs of both argument premise and conclusion stance (using bert-base-uncased or roberta-base).
 
+**NOTE:**
+Although the files in this repository allow for a complete execution of the code, there are important considerations in such regard:
+- We found the best hyperparameters for the models by applying a very time consuming grid search, which we do not recommend to execute (the flags for its execution are already set to False in the main notebook).
+- The training of our models during the grid-search was conducted using a version of Torch that leverages NVIDIA's CUDA processing. This means that the weights that we store in the folder "results" are collected and retrieved in a CUDA-compatible environment and a version of Torch that supports this configuration. Without these, the execution will not yield the intended results.
+
 ## Authors:
 For any questions or assistance, feel free to contact:
 - [Mauro Dore](mauro.dore@studio.unibo.it)
 - [Giacomo Gaiani](giacomo.gaiani@studio.unibo.it)
 - [Gian Mario Marongiu](gianmario.marongiu@studio.unibo.it)
 - [Riccardo Murgia ](riccardo.murgia2@studio.unibo.it)
+
 
