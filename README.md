@@ -20,20 +20,11 @@ pip install -r requirements.txt
 ## Main Notebook
 The main notebook (`main_notebook.ipynb`) serves as the central hub for this project. By executing this notebook, you can perform the following tasks:
 
-- **Data Preparation:** Preprocess the Data, splitting it into training, validation, and test sets.
+- **Data Preparation:** Preprocess the Data, mapping of level 2 values up to level 3.
 - **Model Creation:** Implement, train, and evaluate models.
-- **Error Analysis:** Conduct error analysis on the best-performing model, comparing errors between validation and test sets.
+- **Error Analysis:** Conduct error analysis on the best-performing model, comparing performance across the models.
 
 Feel free to explore and customize the main notebook to experiment with different configurations and settings.
-
-## Data Preparation
-
-Before running the main notebook (`main.ipynb`), you'll need to download and prepare the Penn TreeBank corpus. Follow these steps:
-
-1. Download the [Penn TreeBank corpus](https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/dependency_treebank.zip).
-2. Extract the contents of the downloaded zip file.
-3. Create a folder named `dependency_treebank` in the root directory of this project.
-4. Place the extracted files inside the `dependency_treebank` folder.
 
 
 ## drTorch Framework
